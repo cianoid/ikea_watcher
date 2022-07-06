@@ -18,12 +18,10 @@ jobs:
 
     - name: Install dependencies
       run: | 
-        cd ./app/
         python -m pip install --upgrade pip 
         pip install -r requirements.txt
     - name: Test with flake8
       run: |
-        cd ./app/
         python -m flake8 --config ../setup.cfg .
 
   build_bot_and_push_to_docker_hub:

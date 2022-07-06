@@ -2,8 +2,8 @@ import asyncio
 import logging
 import os
 import re
-import requests
 
+import requests
 from aiogram import Bot, types
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -58,7 +58,7 @@ async def action(bot):
 
 async def action_ping(bot):
     await bot.send_message(
-        chat_id=GROUP_ID, text=f'Просто пингуюсь', disable_notification=True)
+        chat_id=GROUP_ID, text='Просто пингуюсь', disable_notification=True)
 
 
 class Timer:
