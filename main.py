@@ -24,19 +24,21 @@ def get_response(url, use_cache=False):
 def check_text_on_page(text):
     """Парсер текста."""
 
-    response = get_response(MAIN_URL, True)
+    response = get_response(MAIN_URL, False)
     soup = BeautifulSoup(response.text, features='lxml')
-    return len(soup.find_all('li', text=re.compile(text))) > 0
+    result = len(soup.find_all('li', text=re.compile(text))) > 0
+
+    if result:
+        logging.info('Бот не видит изменений')
+        return True
+
+    logging.info('Бот что-то нашел')
+    return False
 
 
 def main():
     configure_logging()
-    logging.info('Парсер запущен!')
-
-    check_text_on_page(
-        'Прием новых заявок запустится немного позже.')
-
-    logging.info('Парсер завершил работу.')
+    check_text_on_page('Прием новых заявок запустится немного позже.')
 
 
 if __name__ == '__main__':
