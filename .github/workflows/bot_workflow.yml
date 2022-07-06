@@ -1,0 +1,118 @@
+# .github/workflows/**bot_workflow.yml**
+name: Bot workflow
+
+on: push
+
+jobs:
+  tests:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: | 
+        cd ./app/
+        python -m pip install --upgrade pip 
+        pip install -r requirements.txt
+    - name: Test with flake8
+      run: |
+        cd ./app/
+        python -m flake8 --config ../setup.cfg .
+
+  build_bot_and_push_to_docker_hub:
+    name: Build bot and push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    needs: tests
+    if: always() && github.ref == 'refs/heads/main' && needs.tests.result == 'success'
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Push to Docker Hub
+        uses: docker/build-push-action@v2
+        with:
+          context: ./app/
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/ikea_watcher:latest
+
+
+  deploy:
+    name: Deploy image on production server
+    runs-on: ubuntu-latest
+    needs: build_bot_and_push_to_docker_hub
+    if: always() && github.ref == 'refs/heads/main' && needs.build_bot_and_push_to_docker_hub.result == 'success'
+
+    steps:
+      - name: executing remote ssh commands to deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/infrastructure/ikea_watcher/
+            
+            docker pull cianoid/ike_watcher:latest
+            docker-compose stop
+            docker-compose rm -f mbot
+            
+            rm -f .env
+            touch .env
+            
+            echo 'TELEGRAM_TOKEN=${{ secrets.ENV_TELEGRAM_TOKEN }}' >> .env
+            echo 'GROUP_ID=${{ secrets.ENV_GROUP_ID }}' >> .env
+            
+            docker-compose up -d
+
+  send_message:
+    name: Send tg-message on success
+    runs-on: ubuntu-latest
+    needs: [tests, deploy, build_bot_and_push_to_docker_hub]
+
+    steps:
+      - name: send message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            ${{ github.workflow }} из репозитория ${{ github.repository }} выполнен успешно!
+            
+            Статусы задач:
+            - Tests: ${{ needs.tests.result }}
+            - Build bot image: ${{ needs.build_bot_and_push_to_docker_hub.result }}
+            - Deploy: ${{ needs.deploy.result }}
+
+  send_message_after_tests:
+    name: Send tg-message after tests-job
+    runs-on: ubuntu-latest
+    needs: [tests]
+    if: always() && github.ref != 'refs/heads/main'
+
+    steps:
+      - name: send message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            Задача tests ${{ github.workflow }} из репозитория ${{ github.repository }} выполнена
+            
+            Статус задачи tests: ${{ needs.tests.result }}

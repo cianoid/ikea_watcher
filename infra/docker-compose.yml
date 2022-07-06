@@ -1,0 +1,13 @@
+version: '2.0'
+
+services:
+  mbot:
+    image: cianoid/ikea_watcher:latest
+    restart: always
+    volumes:
+      - logs_value:/app/logs/
+    env_file:
+      - ./.env
+
+volumes:
+  logs_value:
