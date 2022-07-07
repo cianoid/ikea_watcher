@@ -9,8 +9,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from requests_cache import CachedSession
 
+import constants
 from configs import configure_logging
-from constants import LOG_TEMPLATE, MAIN_URL, USER_AGENT
 
 load_dotenv()
 
@@ -19,23 +19,14 @@ CHAT_ID = os.environ.get('CHAT_ID')
 
 
 def get_response(session, url, use_cache=False):
-    headers = {
-        'User-Agent': USER_AGENT,
-    }
-
-    if not use_cache:
-        response = requests.get(url, headers=headers)
-    else:
-        response = session.get(url, headers=headers)
+    response = {True: session, False: requests}[
+        use_cache].get(url, headers={'User-Agent': constants.USER_AGENT})
 
     status_code = response.status_code
 
-    if status_code == 200:
-        logging.info(
-            LOG_TEMPLATE.format(status_code, len(response.content), url))
-    else:
-        logging.warning(
-            LOG_TEMPLATE.format(status_code, len(response.content), url))
+    getattr(
+        logging, {200: 'info', None: 'warning'}.get(status_code, None))(
+        constants.LOG_TEMPLATE.format(status_code, len(response.content), url))
 
     return response
 
@@ -52,25 +43,23 @@ class CustomException(Exception):
     pass
 
 
-# global last_status, current_status, bot_found_something
-
 last_status = 200
 current_status = 200
 bot_found_something = None
-size_unavailable = None
+site_unavailable = None
 form_unavailable = None
 
 
 def check_text_on_page(session, text):
     """Парсер текста."""
+
     global bot_found_something
     global last_status
     global current_status
 
-    response = get_response(session, MAIN_URL, True)
+    response = get_response(session, constants.MAIN_URL, True)
 
     current_status = response.status_code
-    # current_status = 403
 
     if current_status != last_status and current_status != 200:
         raise ResponseStatusChanged(status_code=current_status)
@@ -78,13 +67,11 @@ def check_text_on_page(session, text):
     soup = BeautifulSoup(response.text, features='lxml')
     result = len(soup.find_all(text=re.compile(text))) > 0
 
-    print(soup.find_all(text=re.compile(text)))
-
     if result:
-        logging.info(f'Текст "{text}" найден')
+        logging.info(constants.MSG_LOG_TEXT_FOUND.format(text))
         return True
 
-    logging.info(f'Текст "{text}" не найден')
+    logging.info(constants.MSG_LOG_TEXT_NOT_FOUND.format(text))
     return False
 
 
@@ -92,35 +79,38 @@ async def action(bot, first_call):
     global bot_found_something
     global last_status
     global current_status
-    global size_unavailable
+    global site_unavailable
     global form_unavailable
+
+    texts = {
+        'site_unavailable': 'Наш сайт сейчас испытывает большую нагрузку',
+        'form_unavailable': 'Прием новых заявок запустится немного позже.'
+    }
 
     try:
         session = CachedSession()
 
         if first_call:
-            logging.info('Бот запущен')
+            logging.info(constants.MSG_BOT_STARTED)
             await bot.send_message(
-                chat_id=CHAT_ID, text='Бот запущен',
+                chat_id=CHAT_ID, text=constants.MSG_BOT_STARTED,
                 disable_notification=True)
 
-        response = check_text_on_page(
-            session, 'Наш сайт сейчас испытывает большую нагрузку')
+        response = check_text_on_page(session, texts['site_unavailable'])
 
         if response:
-            if not size_unavailable:
+            if not site_unavailable:
                 await bot.send_message(
                     chat_id=CHAT_ID,
-                    text=f'HTTP {current_status} Сайт недоступен. Жалуется, '
-                         f'что "Наш сайт сейчас испытывает большую нагрузку"')
+                    text=constants.MSG_NO_SITE.format(
+                        current_status, texts['site_unavailable']))
 
-                logging.warning('Сайт недоступен')
-                size_unavailable = True
+                logging.warning(constants.MSG_LOG_NO_SITE)
+                site_unavailable = True
 
             raise CustomException
 
-        response = check_text_on_page(
-            session, 'Прием новых заявок запустится немного позже.')
+        response = check_text_on_page(session, texts['form_unavailable'])
 
         session.cache.clear()
 
@@ -128,9 +118,9 @@ async def action(bot, first_call):
             if not form_unavailable:
                 await bot.send_message(
                     chat_id=CHAT_ID,
-                    text=f'HTTP {current_status} Форма недоступна')
+                    text=constants.MSG_NO_FORM.format(current_status))
 
-                logging.warning('Форма недоступна')
+                logging.warning(constants.MSG_LOG_NO_FORM)
                 form_unavailable = True
 
             raise CustomException
@@ -139,23 +129,16 @@ async def action(bot, first_call):
 
         await bot.send_message(
             chat_id=CHAT_ID,
-            text=f'У ИКЕА, кажется, что-то поменялось. Возможно, открыта '
-                 f'форма - {MAIN_URL} [{current_status}]')
-        logging.info('Бот что-то нашел! Возможно, это форма')
+            text=constants.MSG_FORM.format(current_status))
+        logging.info(constants.MSG_LOG_FORM)
 
     except ResponseStatusChanged as status_code:
         await bot.send_message(
-            chat_id=CHAT_ID,
-            text=f'Что-то не так! Парсер вернулся с кодом {status_code}')
+            chat_id=CHAT_ID, text=constants.MSG_LOG_ERROR.format(status_code))
     except CustomException:
         pass
     finally:
         last_status = current_status
-
-
-# async def action_ping(bot):
-#     await bot.send_message(
-#         chat_id=CHAT_ID, text='Просто пингуюсь', disable_notification=True)
 
 
 class Timer:
@@ -190,11 +173,9 @@ if __name__ == '__main__':
     bot = Bot(token=TELEGRAM_TOKEN, parse_mode=types.ParseMode.HTML)
 
     timer1 = Timer(interval=180, bot=bot, callback=action)
-    # timer2 = Timer(interval=3600, bot=bot, callback=action_ping)
 
     try:
         loop = asyncio.get_event_loop()
         loop.run_forever()
     except KeyboardInterrupt:
         timer1.cancel()
-        # timer2.cancel()
