@@ -16,3 +16,5 @@ LOG_ENCODING = 'utf-8'
 
 USER_AGENT = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:102.0) '
               'Gecko/20100101 Firefox/102.0')
+
+LOG_TEMPLATE = 'HTTP {}, Size {} bytes, Request: {}'
