@@ -38,7 +38,7 @@ class ResponseStatusChanged(Exception):
         return repr(self.status_code)
 
 
-global last_status, current_status, bot_found_something
+# global last_status, current_status, bot_found_something
 
 last_status = 200
 current_status = 200
@@ -47,6 +47,9 @@ bot_found_something = False
 
 def check_text_on_page(text):
     """Парсер текста."""
+    global bot_found_something
+    global last_status
+    global current_status
 
     response = get_response(MAIN_URL, False)
 
@@ -72,6 +75,10 @@ def check_text_on_page(text):
 
 
 async def action(bot, first_call):
+    global bot_found_something
+    global last_status
+    global current_status
+
     try:
         if first_call:
             await bot.send_message(
@@ -83,6 +90,7 @@ async def action(bot, first_call):
 
         if not result:
             bot_found_something = True
+
             await bot.send_message(
                 chat_id=CHAT_ID,
                 text=f'У ИКЕА, кажется, что-то поменялось. Возможно, открыта '
