@@ -1,7 +1,7 @@
 version: '2.0'
 
 services:
-  mbot:
+  ikea_watcher:
     image: cianoid/ikea_watcher:latest
     restart: always
     volumes:

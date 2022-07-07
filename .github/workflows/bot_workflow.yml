@@ -62,20 +62,22 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             cd ~/infrastructure/ikea_watcher/
             
-            docker pull cianoid/ike_watcher:latest
+            docker pull cianoid/ikea_watcher:latest
             docker-compose stop
-            docker-compose rm -f mbot
+            docker-compose rm -f ikea_watcher
             
             rm -f .env
             touch .env
             
             echo 'TELEGRAM_TOKEN=${{ secrets.ENV_TELEGRAM_TOKEN }}' >> .env
-            echo 'GROUP_ID=${{ secrets.ENV_GROUP_ID }}' >> .env
+            echo 'CHAT_ID=${{ secrets.ENV_CHAT_ID }}' >> .env
             
             docker-compose up -d
 
