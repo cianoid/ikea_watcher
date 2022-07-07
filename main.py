@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
     bot = Bot(token=TELEGRAM_TOKEN, parse_mode=types.ParseMode.HTML)
 
-    timer1 = Timer(interval=15, bot=bot, callback=action)
+    timer1 = Timer(interval=180, bot=bot, callback=action)
     # timer2 = Timer(interval=3600, bot=bot, callback=action_ping)
 
     try:
